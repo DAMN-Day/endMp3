@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/player_provider.dart';
 import 'package:on_audio_query/on_audio_query.dart' as audio;
 import 'package:audioplayers/audioplayers.dart';
+import '../screens/now_playing_screen.dart'; // Asegúrate de importar tu nueva pantalla
 
 class MiniPlayer extends ConsumerWidget {
   const MiniPlayer({super.key});
@@ -16,7 +17,7 @@ class MiniPlayer extends ConsumerWidget {
     if (currentSong == null) return const SizedBox.shrink();
 
     return Container(
-      height: 70, // Un poco más alto para la barra
+      height: 72, // Ajustado para la barra más ancha
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -27,61 +28,75 @@ class MiniPlayer extends ConsumerWidget {
             blurRadius: 10,
             offset: const Offset(0, -2),
           )
-        ]
+        ],
       ),
-      child: Column(
-        children: [
-          // 1. BARRA DE PROGRESO REAL
-          StreamBuilder<Duration>(
-            stream: playerNotifier.positionStream,
-            builder: (context, snapshot) {
-              final position = snapshot.data ?? Duration.zero;
-              return StreamBuilder<Duration>(
-                stream: playerNotifier.durationStream,
-                builder: (context, snapshotDuration) {
-                  final duration = snapshotDuration.data ?? const Duration(seconds: 1);
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque, // Detecta el toque en toda el área
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const NowPlayingScreen()),
+          );
+        },
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12), // Para que la barra no se salga de las esquinas
+          child: Column(
+            children: [
+              // 1. BARRA DE PROGRESO REAL (ANCHA)
+              StreamBuilder<Duration>(
+                stream: playerNotifier.positionStream,
+                builder: (context, snapshotPos) {
+                  final position = snapshotPos.data ?? Duration.zero;
+                  return StreamBuilder<Duration>(
+                    stream: playerNotifier.durationStream,
+                    builder: (context, snapshotDur) {
+                      final duration = snapshotDur.data ?? Duration.zero;
+                      
+                      double progress = 0.0;
+                      if (duration.inMilliseconds > 0) {
+                        progress = position.inMilliseconds / duration.inMilliseconds;
+                      }
 
-                  // Y asegúrate de que el cálculo del 'value' no divida por cero:
-                  return LinearProgressIndicator(
-                    value: (duration.inMilliseconds > 0) 
-                        ? position.inMilliseconds / duration.inMilliseconds 
-                        : 0.0,
-                    backgroundColor: Colors.white10,
-                    valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
-                    minHeight: 2,
+                      return LinearProgressIndicator(
+                        value: progress.clamp(0.0, 1.0),
+                        backgroundColor: Colors.white10,
+                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                        minHeight: 4, // Ancha como pediste
+                      );
+                    },
                   );
                 },
-              );
-            },
-          ),
-          
-          // 2. CONTENIDO (ListTile)
-          Expanded(
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 10),
-              leading: _AlbumArt(songId: currentSong.id),
-              title: Text(
-                currentSong.title,
-                style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.bold),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
-              subtitle: Text(
-                currentSong.artist,
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+
+              // 2. CONTENIDO (Info y Controles)
+              Expanded(
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                  leading: _AlbumArt(songId: currentSong.id),
+                  title: Text(
+                    currentSong.title,
+                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.bold),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    currentSong.artist,
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: _PlayPauseButton(),
+                ),
               ),
-              trailing: _PlayPauseButton(),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-// --- WIDGETS DE APOYO (Para evitar errores de "not defined") ---
+// --- WIDGETS DE APOYO ---
 
 class _AlbumArt extends StatelessWidget {
   final int songId;
@@ -91,17 +106,19 @@ class _AlbumArt extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(6),
-      child: audio.QueryArtworkWidget(
-        id: songId,
-        type: audio.ArtworkType.AUDIO,
-        format: audio.ArtworkFormat.JPEG,
-        size: 200,
-        quality: 100,
-        nullArtworkWidget: Container(
-          width: 48,
-          height: 48,
-          color: Colors.white10,
-          child: const Icon(Icons.music_note, color: AppColors.primary),
+      child: SizedBox(
+        width: 48,
+        height: 48,
+        child: audio.QueryArtworkWidget(
+          id: songId,
+          type: audio.ArtworkType.AUDIO,
+          format: audio.ArtworkFormat.JPEG,
+          size: 200,
+          quality: 100,
+          nullArtworkWidget: Container(
+            color: Colors.white10,
+            child: const Icon(Icons.music_note, color: AppColors.primary),
+          ),
         ),
       ),
     );
