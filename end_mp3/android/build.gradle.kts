@@ -20,28 +20,21 @@ subprojects {
             if (namespace == null) {
                 namespace = project.group.toString()
             }
-            // Bajamos todo a 1.8 para máxima compatibilidad
+            
             compileOptions {
-                sourceCompatibility = JavaVersion.VERSION_1_8
-                targetCompatibility = JavaVersion.VERSION_1_8
+                sourceCompatibility = JavaVersion.VERSION_11
+                targetCompatibility = JavaVersion.VERSION_11
             }
         }
     }
 
-    // Forzamos Kotlin a 1.8
+    // Usamos compilerOptions en lugar de kotlinOptions para evitar conflictos de tipos
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
         compilerOptions {
-            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
         }
     }
-
-    // Forzamos Java a 1.8
-    tasks.withType<JavaCompile>().configureEach {
-        sourceCompatibility = JavaVersion.VERSION_1_8.toString()
-        targetCompatibility = JavaVersion.VERSION_1_8.toString()
-    }
 }
-
 subprojects {
     project.evaluationDependsOn(":app")
 }
