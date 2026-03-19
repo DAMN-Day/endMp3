@@ -1,3 +1,4 @@
+import 'package:end_mp3/core/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/library_provider.dart';
@@ -10,32 +11,29 @@ class LibraryScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Escuchamos los dos providers: la lista completa y los álbumes únicos
     final songs = ref.watch(libraryProvider);
     final albums = ref.watch(albumsProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: AppColors.background,
       body: CustomScrollView(
         slivers: [
-          // 1. App Bar Estilo Spotify
           SliverAppBar(
-            backgroundColor: const Color(0xFF121212),
+            backgroundColor: AppColors.background,
             floating: true,
             pinned: false,
             elevation: 0,
             title: const Text('Tu biblioteca', 
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
             actions: [
-              IconButton(icon: const Icon(Icons.search, color: Colors.white), onPressed: () {}),
+              IconButton(icon: const Icon(Icons.search, color: AppColors.textPrimary), onPressed: () {}),
               IconButton(
-                icon: const Icon(Icons.add, color: Colors.white), 
+                icon: const Icon(Icons.add, color: AppColors.textPrimary), 
                 onPressed: () => _showCreatePlaylistDialog(context),
               ),
             ],
           ),
 
-          // 2. Sección de Cuadros (Álbumes / Me Gusta)
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -48,7 +46,6 @@ class LibraryScreen extends ConsumerWidget {
                   mainAxisSpacing: 8,
                   crossAxisSpacing: 8,
                 ),
-                // Mostramos "Mis Me Gusta" + los primeros 5 álbumes encontrados
                 itemCount: (albums.length > 5 ? 6 : albums.length + 1),
                 itemBuilder: (context, index) {
                   if (index == 0) {
@@ -61,7 +58,6 @@ class LibraryScreen extends ConsumerWidget {
             ),
           ),
 
-          // 3. Pestañas de Filtro Rápidas
           SliverToBoxAdapter(
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -70,20 +66,20 @@ class LibraryScreen extends ConsumerWidget {
                 children: ['Playlists', 'Artistas', 'Álbumes'].map((label) => Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: Chip(
-                    backgroundColor: const Color(0xFF282828),
-                    label: Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
+                    backgroundColor: AppColors.surface,
+                    label: Text(label, style: const TextStyle(color: AppColors.textPrimary, fontSize: 12)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    side: BorderSide.none,
                   ),
                 )).toList(),
               ),
             ),
           ),
 
-          // 4. Lista de Canciones Reales
           songs.isEmpty 
           ? const SliverFillRemaining(
               child: Center(child: Text("No hay canciones. Toca el botón para escanear.", 
-                style: TextStyle(color: Colors.grey))),
+                style: TextStyle(color: AppColors.textSecondary))),
             )
           : SliverList(
               delegate: SliverChildBuilderDelegate(
@@ -92,29 +88,26 @@ class LibraryScreen extends ConsumerWidget {
                   return ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     leading: ClipRRect(
-                              borderRadius: BorderRadius.circular(4), // Bordes redondeados estilo Spotify
-                              child: audio.QueryArtworkWidget(
-                                id: song.id, // El ID que sacamos en el provider
-                                type: audio.ArtworkType.AUDIO,       // Le decimos que busque en el audio
-                                format: audio.ArtworkFormat.JPEG,
-                                nullArtworkWidget: Container(           // Si la canción no tiene foto, sale esto:
-                                  width: 50,
-                                  height: 50,
-                                  color: const Color(0xFF282828),
-                                  child: const Icon(Icons.music_note, color: Color(0xFF1DB954)),
-                                ),
-                              ),
-                            ),
+                      borderRadius: BorderRadius.circular(4),
+                      child: audio.QueryArtworkWidget(
+                        id: song.id,
+                        type: audio.ArtworkType.AUDIO,
+                        format: audio.ArtworkFormat.JPEG,
+                        nullArtworkWidget: Container(
+                          width: 50,
+                          height: 50,
+                          color: AppColors.surface,
+                          child: const Icon(Icons.music_note, color: AppColors.primary),
+                        ),
+                      ),
+                    ),
                     title: Text(song.title, 
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 16),
+                      style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w500, fontSize: 16),
                       maxLines: 1, overflow: TextOverflow.ellipsis),
                     subtitle: Text("${song.artist} • ${song.album}", 
-                      style: const TextStyle(color: Color(0xFFB3B3B3), fontSize: 13),
+                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
                       maxLines: 1, overflow: TextOverflow.ellipsis),
-                    onTap: () {
-                      // Aquí irá la lógica para reproducir
-                      ref.read(playerProvider.notifier).playSong(song);
-                    },
+                    onTap: () => ref.read(playerProvider.notifier).playSong(song),
                   );
                 },
                 childCount: songs.length,
@@ -122,26 +115,22 @@ class LibraryScreen extends ConsumerWidget {
             ),
         ],
       ),
-      
-      
-      // Botón flotante para escanear si la lista está vacía
       floatingActionButton: songs.isEmpty 
         ? FloatingActionButton.extended(
             onPressed: () => ref.read(libraryProvider.notifier).pickMusicDirectory(),
-            label: const Text("Escanear Música", style: TextStyle(color: Colors.black)),
+            label: const Text("Escanear Música", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
             icon: const Icon(Icons.folder_open, color: Colors.black),
-            backgroundColor: const Color(0xFF1DB954),
+            backgroundColor: AppColors.primary,
           )
         : null,
-        bottomNavigationBar: const MiniPlayer(),
+      bottomNavigationBar: const MiniPlayer(),
     );
   }
 
-  // Componente para los cuadros pequeños de arriba
   Widget _quickActionCard(String title, IconData icon, Color color) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF282828),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(4),
       ),
       child: Row(
@@ -158,7 +147,7 @@ class LibraryScreen extends ConsumerWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(title, 
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+              style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 11),
               maxLines: 2, overflow: TextOverflow.ellipsis),
           ),
         ],
@@ -166,30 +155,29 @@ class LibraryScreen extends ConsumerWidget {
     );
   }
 
-  // Diálogo para crear Playlist (Botón +)
   void _showCreatePlaylistDialog(BuildContext context) {
     final TextEditingController _controller = TextEditingController();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF282828),
+        backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        title: const Text("Ponle nombre a tu playlist", style: TextStyle(color: Colors.white, fontSize: 18)),
+        title: const Text("Ponle nombre a tu playlist", style: TextStyle(color: AppColors.textPrimary, fontSize: 18)),
         content: TextField(
           controller: _controller,
           autofocus: true,
-          style: const TextStyle(color: Colors.white),
-          cursorColor: const Color(0xFF1DB954),
+          style: const TextStyle(color: AppColors.textPrimary),
+          cursorColor: AppColors.primary,
           decoration: const InputDecoration(
             hintText: "Mi playlist #1",
-            hintStyle: TextStyle(color: Colors.grey),
-            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF1DB954))),
+            hintStyle: TextStyle(color: AppColors.textSecondary),
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.textSecondary)),
+            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary)),
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("CANCELAR", style: TextStyle(color: Colors.white70))),
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("CREAR", style: TextStyle(color: Color(0xFF1DB954), fontWeight: FontWeight.bold))),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("CANCELAR", style: TextStyle(color: AppColors.textSecondary))),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("CREAR", style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold))),
         ],
       ),
     );
