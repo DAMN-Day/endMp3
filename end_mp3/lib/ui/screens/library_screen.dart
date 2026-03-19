@@ -97,10 +97,11 @@ class LibraryScreen extends ConsumerWidget {
                 (context, index) {
                   final albumName = albums[index];
                   final firstSongInAlbum = songs.firstWhere((s) => s.album == albumName);
-              
+
                   return GestureDetector(
+                    // IMPORTANTE: El comportamiento 'opaque' asegura que detecte el clic en todo el cuadro
+                    behavior: HitTestBehavior.opaque, 
                     onTap: () {
-                      // NAVEGACIÓN AL ÁLBUM
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -114,35 +115,52 @@ class LibraryScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        AspectRatio(
-                          aspectRatio: 1.0, // Fuerza a que sea un cuadrado
-                          child: audio.QueryArtworkWidget(
-                            id: firstSongInAlbum.id,
-                            type: audio.ArtworkType.AUDIO,
-                            // --- AQUÍ ESTÁ EL TRUCO DE LA CALIDAD ---
-                            format: audio.ArtworkFormat.JPEG, // JPEG suele tener mejor compatibilidad
-                            quality: 100,                     // Subimos la calidad al máximo (0-100)
-                            size: 500,                        // Pedimos un tamaño mayor (por defecto es 200)
-                            // ----------------------------------------
-                            nullArtworkWidget: Container(
-                              decoration: BoxDecoration(
-                                color: AppColors.surface,
-                                borderRadius: BorderRadius.circular(4), // Un radio muy pequeño o 0 para que sea cuadrado
+                        // CONTENEDOR DE LA IMAGEN CON SOMBRA
+                        Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(4), // Casi cuadrado
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.6),
+                                blurRadius: 12,
+                                offset: const Offset(0, 6),
                               ),
-                              child: const Icon(Icons.album, color: AppColors.primary, size: 50),
+                            ],
+                          ),
+                          child: AspectRatio(
+                            aspectRatio: 1.0,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(4), // Mismo radio aquí
+                              child: audio.QueryArtworkWidget(
+                                id: firstSongInAlbum.id,
+                                type: audio.ArtworkType.AUDIO,
+                                format: audio.ArtworkFormat.JPEG,
+                                size: 600,    // Máxima nitidez
+                                quality: 100, // Máxima calidad
+                                artworkFit: BoxFit.cover,
+                                // ESTO ELIMINA EL CÍRCULO SI LA LIBRERÍA LO INTENTA FORZAR
+                                artworkBorder: BorderRadius.zero, 
+                                nullArtworkWidget: Container(
+                                  color: AppColors.surface,
+                                  child: const Icon(Icons.album, color: AppColors.primary, size: 40),
+                                ),
+                              ),
                             ),
-                            // Forzamos que la imagen use todo el espacio sin bordes redondeados
-                            artworkBorder: BorderRadius.circular(4), 
-                            artworkFit: BoxFit.cover,
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        Text(albumName, 
+                        const SizedBox(height: 10),
+                        Text(
+                          albumName,
                           style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 11),
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
-                        Text(firstSongInAlbum.artist, 
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          firstSongInAlbum.artist,
                           style: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ],
                     ),
                   );

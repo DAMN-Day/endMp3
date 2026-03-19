@@ -8,6 +8,12 @@ part 'player_provider.g.dart';
 class Player extends _$Player {
   // Cambiamos AudioPlayer de just_audio por el de audioplayers
   final AudioPlayer _audioPlayer = AudioPlayer();
+  // Transmite la posición actual (segundo a segundo)
+  Stream<Duration> get positionStream => _audioPlayer.onPositionChanged;
+  // Transmite la duración total de la canción
+  Stream<Duration> get durationStream => _audioPlayer.onDurationChanged;
+  // Transmite si está reproduciendo, pausado o detenido
+  Stream<PlayerState> get stateStream => _audioPlayer.onPlayerStateChanged;
 
   @override
   SongModel? build() {
@@ -32,6 +38,4 @@ class Player extends _$Player {
     }
   }
 
-  // Stream simplificado para la UI
-  Stream<PlayerState> get stateStream => _audioPlayer.onPlayerStateChanged;
 }
