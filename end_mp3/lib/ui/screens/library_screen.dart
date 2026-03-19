@@ -5,6 +5,8 @@ import '../../providers/library_provider.dart';
 import 'package:on_audio_query/on_audio_query.dart' as audio;
 import 'package:end_mp3/providers/player_provider.dart';
 import 'package:end_mp3/ui/widgets/mini_player.dart';
+import 'package:end_mp3/data/models/song_model.dart';
+import 'package:end_mp3/ui/screens/album_detail_screen.dart';
 
 class LibraryScreen extends ConsumerWidget {
   const LibraryScreen({super.key});
@@ -18,6 +20,7 @@ class LibraryScreen extends ConsumerWidget {
       backgroundColor: AppColors.background,
       body: CustomScrollView(
         slivers: [
+          // 1. App Bar
           SliverAppBar(
             backgroundColor: AppColors.background,
             floating: true,
@@ -34,6 +37,7 @@ class LibraryScreen extends ConsumerWidget {
             ],
           ),
 
+          // 2. Sección de Cuadros Rápidos (Me gusta, etc.)
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -46,18 +50,15 @@ class LibraryScreen extends ConsumerWidget {
                   mainAxisSpacing: 8,
                   crossAxisSpacing: 8,
                 ),
-                itemCount: (albums.length > 5 ? 6 : albums.length + 1),
+                itemCount: 1, // Simplificado a 2 por ahora para no saturar
                 itemBuilder: (context, index) {
-                  if (index == 0) {
-                    return _quickActionCard("Tus me gusta", Icons.favorite, Colors.deepPurple);
-                  }
-                  final albumName = albums[index - 1];
-                  return _quickActionCard(albumName, Icons.album, Colors.blueGrey);
+                  return _quickActionCard("Tus me gusta", Icons.favorite, Colors.deepPurple);
                 },
               ),
             ),
           ),
 
+          // 3. Pestañas de Filtro
           SliverToBoxAdapter(
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -76,49 +77,89 @@ class LibraryScreen extends ConsumerWidget {
             ),
           ),
 
+          // 4. CUADRÍCULA DE ÁLBUMES (3 POR ANCHO)
           songs.isEmpty 
           ? const SliverFillRemaining(
-              child: Center(child: Text("No hay canciones. Toca el botón para escanear.", 
+              child: Center(child: Text("No hay canciones. Escanea tu música.", 
                 style: TextStyle(color: AppColors.textSecondary))),
             )
-          : SliverList(
+            
+          : SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3, 
+                mainAxisSpacing: 15,
+                crossAxisSpacing: 15,
+                childAspectRatio: 0.7, // Mantenemos 0.7 para que el cuadro sea cuadrado + espacio para texto
+              ),
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
-                  final song = songs[index];
-                  return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: audio.QueryArtworkWidget(
-                        id: song.id,
-                        type: audio.ArtworkType.AUDIO,
-                        format: audio.ArtworkFormat.JPEG,
-                        nullArtworkWidget: Container(
-                          width: 50,
-                          height: 50,
-                          color: AppColors.surface,
-                          child: const Icon(Icons.music_note, color: AppColors.primary),
+                  final albumName = albums[index];
+                  final firstSongInAlbum = songs.firstWhere((s) => s.album == albumName);
+              
+                  return GestureDetector(
+                    onTap: () {
+                      // NAVEGACIÓN AL ÁLBUM
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AlbumDetailScreen(
+                            albumName: albumName,
+                            albumSongs: songs.where((s) => s.album == albumName).toList(),
+                          ),
                         ),
-                      ),
+                      );
+                    },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        AspectRatio(
+                          aspectRatio: 1.0, // Fuerza a que sea un cuadrado
+                          child: audio.QueryArtworkWidget(
+                            id: firstSongInAlbum.id,
+                            type: audio.ArtworkType.AUDIO,
+                            // --- AQUÍ ESTÁ EL TRUCO DE LA CALIDAD ---
+                            format: audio.ArtworkFormat.JPEG, // JPEG suele tener mejor compatibilidad
+                            quality: 100,                     // Subimos la calidad al máximo (0-100)
+                            size: 500,                        // Pedimos un tamaño mayor (por defecto es 200)
+                            // ----------------------------------------
+                            nullArtworkWidget: Container(
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(4), // Un radio muy pequeño o 0 para que sea cuadrado
+                              ),
+                              child: const Icon(Icons.album, color: AppColors.primary, size: 50),
+                            ),
+                            // Forzamos que la imagen use todo el espacio sin bordes redondeados
+                            artworkBorder: BorderRadius.circular(4), 
+                            artworkFit: BoxFit.cover,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(albumName, 
+                          style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 11),
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text(firstSongInAlbum.artist, 
+                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ],
                     ),
-                    title: Text(song.title, 
-                      style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w500, fontSize: 16),
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                    subtitle: Text("${song.artist} • ${song.album}", 
-                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                    onTap: () => ref.read(playerProvider.notifier).playSong(song),
                   );
                 },
-                childCount: songs.length,
+                childCount: albums.length,
               ),
             ),
+          ),
+            
+            // Espacio para que el miniplayer no tape el último álbum
+            const SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],
       ),
       floatingActionButton: songs.isEmpty 
         ? FloatingActionButton.extended(
             onPressed: () => ref.read(libraryProvider.notifier).pickMusicDirectory(),
-            label: const Text("Escanear Música", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            label: const Text("Escanear", style: TextStyle(color: Colors.black)),
             icon: const Icon(Icons.folder_open, color: Colors.black),
             backgroundColor: AppColors.primary,
           )
@@ -126,6 +167,8 @@ class LibraryScreen extends ConsumerWidget {
       bottomNavigationBar: const MiniPlayer(),
     );
   }
+
+  // --- Mismos Widgets de apoyo ---
 
   Widget _quickActionCard(String title, IconData icon, Color color) {
     return Container(
@@ -142,12 +185,12 @@ class LibraryScreen extends ConsumerWidget {
               color: color,
               borderRadius: const BorderRadius.only(topLeft: Radius.circular(4), bottomLeft: Radius.circular(4))
             ),
-            child: Icon(icon, color: Colors.white, size: 28),
+            child: Icon(icon, color: Colors.white, size: 24),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(title, 
-              style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 11),
+              style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 10),
               maxLines: 2, overflow: TextOverflow.ellipsis),
           ),
         ],
@@ -162,22 +205,19 @@ class LibraryScreen extends ConsumerWidget {
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        title: const Text("Ponle nombre a tu playlist", style: TextStyle(color: AppColors.textPrimary, fontSize: 18)),
+        title: const Text("Nueva Playlist", style: TextStyle(color: AppColors.textPrimary, fontSize: 18)),
         content: TextField(
           controller: _controller,
           autofocus: true,
           style: const TextStyle(color: AppColors.textPrimary),
-          cursorColor: AppColors.primary,
           decoration: const InputDecoration(
-            hintText: "Mi playlist #1",
-            hintStyle: TextStyle(color: AppColors.textSecondary),
-            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.textSecondary)),
-            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary)),
+            hintText: "Nombre de la playlist",
+            hintStyle: TextStyle(color: Colors.grey),
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("CANCELAR", style: TextStyle(color: AppColors.textSecondary))),
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("CREAR", style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold))),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("CANCELAR")),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("CREAR", style: TextStyle(color: AppColors.primary))),
         ],
       ),
     );
