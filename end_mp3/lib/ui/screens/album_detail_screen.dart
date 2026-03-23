@@ -113,7 +113,12 @@ class AlbumDetailScreen extends ConsumerWidget {
                     style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   ),
                   trailing: const Icon(Icons.more_vert, color: AppColors.textSecondary), // Tres puntitos para opciones
-                  onTap: () => ref.read(playerProvider.notifier).playSong(song),
+                  onTap: () {
+                    ref.read(playerProvider.notifier).playSong(
+                      song, 
+                      playlist: albumSongs, // <--- ESTO ES LA CLAVE
+                    );
+                  },
                 );
               },
               childCount: albumSongs.length,

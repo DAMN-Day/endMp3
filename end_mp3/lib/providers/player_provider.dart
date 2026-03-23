@@ -1,23 +1,23 @@
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../data/models/song_model.dart';
-import 'library_provider.dart'; // <--- Importante para playNext/Previous
+import 'library_provider.dart'; 
 
 part 'player_provider.g.dart';
 
 @riverpod
 class Player extends _$Player {
-  // 1. Definimos el reproductor
   final AudioPlayer _audioPlayer = AudioPlayer();
+  List<SongModel> _currentPlaylist = [];
 
-  // 2. STREAMS para la UI (MiniPlayer y NowPlaying)
+  // Getters para la UI
   Stream<Duration> get positionStream => _audioPlayer.onPositionChanged;
   Stream<Duration> get durationStream => _audioPlayer.onDurationChanged;
   Stream<PlayerState> get stateStream => _audioPlayer.onPlayerStateChanged;
 
   @override
   SongModel? build() {
-    // Escucha automática al terminar una canción
     _audioPlayer.onPlayerComplete.listen((event) {
       playNext();
     });
@@ -25,13 +25,61 @@ class Player extends _$Player {
   }
 
   // MÉTODO: REPRODUCIR
-  Future<void> playSong(SongModel song) async {
+  Future<void> playSong(SongModel song, {List<SongModel>? playlist}) async {
     try {
+      await _audioPlayer.stop(); 
       state = song;
-      await _audioPlayer.play(DeviceFileSource(song.path));
+
+      // ORDENAMIENTO POR TRACK
+      if (playlist != null) {
+        List<SongModel> sortedPlaylist = List.from(playlist);
+        sortedPlaylist.sort((a, b) {
+          // Si tu SongModel usa otro nombre, cámbialo aquí (ej. a.trackNumber)
+          final int trackA = a.track ?? 0;
+          final int trackB = b.track ?? 0;
+          return trackA.compareTo(trackB);
+        });
+        _currentPlaylist = sortedPlaylist;
+      } else if (_currentPlaylist.isEmpty) {
+        _currentPlaylist = ref.read(libraryProvider);
+      }
+
+      await _audioPlayer.setSource(DeviceFileSource(song.path));
+      await _audioPlayer.resume();
+
+      // Despertador de metadatos
+      Future.delayed(const Duration(milliseconds: 600), () async {
+         await _audioPlayer.getDuration();
+      });
+      
     } catch (e) {
-      // Manejo de errores (opcional)
-      print("Error al reproducir la canción: $e");
+      debugPrint("Error al reproducir: $e");
+    }
+  }
+
+  // MÉTODO: SIGUIENTE
+  void playNext() {
+    if (state == null || _currentPlaylist.isEmpty) return;
+
+    final currentIndex = _currentPlaylist.indexWhere((s) => s.id == state!.id);
+
+    if (currentIndex != -1 && currentIndex < _currentPlaylist.length - 1) {
+      playSong(_currentPlaylist[currentIndex + 1]);
+    } else {
+      playSong(_currentPlaylist.first); 
+    }
+  }
+
+  // MÉTODO: ANTERIOR
+  void playPrevious() {
+    if (state == null || _currentPlaylist.isEmpty) return;
+
+    final currentIndex = _currentPlaylist.indexWhere((s) => s.id == state!.id);
+
+    if (currentIndex > 0) {
+      playSong(_currentPlaylist[currentIndex - 1]);
+    } else {
+      playSong(_currentPlaylist.last); 
     }
   }
 
@@ -44,36 +92,8 @@ class Player extends _$Player {
     }
   }
 
-  // MÉTODO: ADELANTAR/ATRASAR
+  // MÉTODO: BUSCAR (SEEK)
   Future<void> seek(Duration position) async {
     await _audioPlayer.seek(position);
-  }
-
-  // MÉTODO: SIGUIENTE
-  void playNext() {
-    final allSongs = ref.read(libraryProvider);
-    if (state == null || allSongs.isEmpty) return;
-
-    final currentIndex = allSongs.indexWhere((s) => s.id == state!.id);
-
-    if (currentIndex < allSongs.length - 1) {
-      playSong(allSongs[currentIndex + 1]);
-    } else {
-      playSong(allSongs.first);
-    }
-  }
-
-  // MÉTODO: ANTERIOR
-  void playPrevious() {
-    final allSongs = ref.read(libraryProvider);
-    if (state == null || allSongs.isEmpty) return;
-
-    final currentIndex = allSongs.indexWhere((s) => s.id == state!.id);
-
-    if (currentIndex > 0) {
-      playSong(allSongs[currentIndex - 1]);
-    } else {
-      playSong(allSongs.last);
-    }
   }
 }

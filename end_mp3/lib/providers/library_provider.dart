@@ -64,8 +64,19 @@ class Library extends _$Library {
                 album: s.album ?? "Álbum Desconocido",
                 path: s.data,
                 albumArt: s.id.toString(),
+                track: s.track,
               ))
           .toList();
+      // ORDENAMIENTO: Primero por álbum, luego por número de pista
+      filteredSongs.sort((a, b) {
+        // 1. Comparamos los álbumes (para que las canciones de un mismo disco estén juntas)
+        int albumComp = a.album.toLowerCase().compareTo(b.album.toLowerCase());
+        if (albumComp != 0) return albumComp;
+
+        // 2. Dentro del mismo álbum, ordenamos por Track Number
+        // Usamos ?? 0 para evitar errores si el archivo no tiene metadatos de pista
+        return (a.track ?? 0).compareTo(b.track ?? 0);
+      });
 
       state = filteredSongs;
     }

@@ -7,6 +7,7 @@ class SongModel{
   final String album;
   final String path;
   final String? albumArt;
+  final int? track;
   
   SongModel({
     required this.id,
@@ -14,6 +15,7 @@ class SongModel{
     required this.artist,
     required this.album,
     required this.path,
+    this.track,
     this.albumArt
   });
 

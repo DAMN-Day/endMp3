@@ -1,9 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query/on_audio_query.dart' as audio;
+import 'package:palette_generator/palette_generator.dart';
+import 'package:audioplayers/audioplayers.dart'; // Asegura este import
 import '../../core/app_colors.dart';
 import '../../providers/player_provider.dart';
-import 'package:audioplayers/audioplayers.dart';
+
+// Provider para el color (con cache para evitar parpadeo)
+final albumColorProvider = FutureProvider.family<Color, int>((ref, songId) async {
+  final artwork = await audio.OnAudioQuery().queryArtwork(songId, audio.ArtworkType.AUDIO);
+  if (artwork == null) return AppColors.background;
+  final palette = await PaletteGenerator.fromImageProvider(MemoryImage(artwork));
+  return palette.dominantColor?.color.withOpacity(0.3) ?? AppColors.background;
+});
 
 class NowPlayingScreen extends ConsumerWidget {
   const NowPlayingScreen({super.key});
@@ -12,184 +21,202 @@ class NowPlayingScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final currentSong = ref.watch(playerProvider);
     final playerNotifier = ref.read(playerProvider.notifier);
+    
+    // Solo pedimos el color si hay una canción
+    final dynamicColor = currentSong != null 
+        ? ref.watch(albumColorProvider(currentSong.id)).value ?? AppColors.background
+        : AppColors.background;
 
     if (currentSong == null) return const Scaffold();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.keyboard_arrow_down, size: 30),
-          onPressed: () => Navigator.pop(context),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [dynamicColor, AppColors.background],
+          ),
         ),
-        title: const Text("REPRODUCIENDO", style: TextStyle(fontSize: 12, letterSpacing: 2)),
-        centerTitle: true,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 30),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // 1. CARÁTULA GIGANTE
-            AspectRatio(
-              aspectRatio: 1,
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withOpacity(0.3),
-                      blurRadius: 40,
-                      spreadRadius: 5,
-                    )
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: audio.QueryArtworkWidget(
-                    id: currentSong.id,
-                    type: audio.ArtworkType.AUDIO,
-                    size: 1000,
-                    quality: 100,
-                    nullArtworkWidget: Container(
-                      color: AppColors.surface,
-                      child: const Icon(Icons.music_note, size: 100, color: AppColors.primary),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 50),
-
-            // 2. INFO DE CANCIÓN
-            Row(
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 30),
+            child: Column(
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(currentSong.title, 
-                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                      Text(currentSong.artist, 
-                        style: const TextStyle(fontSize: 18, color: AppColors.textSecondary)),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.favorite_border, color: AppColors.primary, size: 30),
-              ],
-            ),
-            const SizedBox(height: 30),
-
-            // 3. BARRA DE PROGRESO CON TIEMPOS
-            _PlayerSlider(playerNotifier: playerNotifier),
-
-            // 4. CONTROLES
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                const Icon(Icons.shuffle, color: AppColors.textSecondary),
+                _buildHeader(context),
+                const Spacer(),
                 
-                // Botón ANTERIOR
-                IconButton(
-                  icon: const Icon(Icons.skip_previous, size: 45, color: Colors.white),
-                  onPressed: () => playerNotifier.playPrevious(), // Necesitas este método en tu provider
-                ),
+                // PORTADA (Widget separado para evitar parpadeo)
+                _AlbumArtwork(songId: currentSong.id),
+                
+                const Spacer(),
+                _buildSongInfo(currentSong),
+                const SizedBox(height: 30),
 
-                // BOTÓN PLAY/PAUSE DINÁMICO
-                StreamBuilder<PlayerState>(
-                  stream: playerNotifier.stateStream,
-                  builder: (context, snapshot) {
-                    final isPlaying = snapshot.data == PlayerState.playing;
-                    return GestureDetector(
-                      onTap: () => playerNotifier.togglePlay(),
-                      child: Container(
-                        padding: const EdgeInsets.all(15),
-                        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                        child: Icon(
-                          isPlaying ? Icons.pause : Icons.play_arrow, 
-                          size: 40, 
-                          color: Colors.black,
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                // SLIDER Y TIEMPOS
+                _PlayerSlider(playerNotifier: playerNotifier),
 
-                // Botón SIGUIENTE
-                IconButton(
-                  icon: const Icon(Icons.skip_next, size: 45, color: Colors.white),
-                  onPressed: () => playerNotifier.playNext(), // Necesitas este método en tu provider
-                ),
-
-                const Icon(Icons.repeat, color: AppColors.textSecondary),
+                const SizedBox(height: 30),
+                _buildControls(playerNotifier),
+                const Spacer(),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- WIDGETS INTERNOS ---
+  Widget _buildHeader(BuildContext context) => Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      IconButton(
+        icon: const Icon(Icons.keyboard_arrow_down, size: 35, color: Colors.white),
+        onPressed: () => Navigator.pop(context),
+      ),
+      const Text("REPRODUCIENDO", style: TextStyle(fontSize: 10, letterSpacing: 2, color: Colors.white70)),
+      const SizedBox(width: 48),
+    ],
+  );
+
+  Widget _buildSongInfo(dynamic song) => Row(
+    children: [
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(song.title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white), maxLines: 1, overflow: TextOverflow.ellipsis),
+            Text(song.artist, style: const TextStyle(fontSize: 18, color: Colors.white70)),
           ],
+        ),
+      ),
+      const Icon(Icons.favorite_border, color: AppColors.primary, size: 28),
+    ],
+  );
+
+  // --- BOTONES DE CONTROL CORREGIDOS ---
+  Widget _buildControls(dynamic notifier) => Row(
+    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+    children: [
+      const Icon(Icons.shuffle, color: Colors.white54),
+      IconButton(
+        icon: const Icon(Icons.skip_previous, size: 40, color: Colors.white),
+        onPressed: () => notifier.playPrevious(),
+      ),
+      
+      // USAMOS UN CONSUMER PARA EL BOTÓN DE PLAY (Más confiable)
+      Consumer(
+        builder: (context, ref, child) {
+          // Escuchamos el stream de estado del audioplayer directamente
+          return StreamBuilder<PlayerState>(
+            stream: notifier.stateStream,
+            builder: (context, snapshot) {
+              final isPlaying = snapshot.data == PlayerState.playing;
+              return GestureDetector(
+                onTap: () => notifier.togglePlay(),
+                child: Container(
+                  padding: const EdgeInsets.all(15),
+                  decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                  child: Icon(
+                    isPlaying ? Icons.pause : Icons.play_arrow, 
+                    size: 40, 
+                    color: Colors.black
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+      
+      IconButton(
+        icon: const Icon(Icons.skip_next, size: 40, color: Colors.white),
+        onPressed: () => notifier.playNext(),
+      ),
+      const Icon(Icons.repeat, color: Colors.white54),
+    ],
+  );
+}
+
+// --- PORTADA INDEPENDIENTE (EVITA PARPADEO) ---
+class _AlbumArtwork extends StatelessWidget {
+  final int songId;
+  const _AlbumArtwork({required this.songId});
+
+  @override
+  Widget build(BuildContext context) {
+    return AspectRatio(
+      aspectRatio: 1,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [BoxShadow(color: Colors.black45, blurRadius: 30, offset: const Offset(0, 10))],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: audio.QueryArtworkWidget(
+            id: songId,
+            type: audio.ArtworkType.AUDIO,
+            size: 800,
+            quality: 100,
+            artworkFit: BoxFit.cover,
+            nullArtworkWidget: Container(color: AppColors.surface, child: const Icon(Icons.music_note, size: 80, color: Colors.white24)),
+          ),
         ),
       ),
     );
   }
 }
 
+// --- SLIDER CORREGIDO ---
 class _PlayerSlider extends ConsumerWidget {
-  final dynamic playerNotifier; // Pasamos el notifier para usar sus streams y métodos
-
-  const _PlayerSlider({required this.playerNotifier});
+  final dynamic playerNotifier;
+  const _PlayerSlider({super.key, required this.playerNotifier});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context, WidgetRef ref) { // <--- 'ref' se define aquí
     return StreamBuilder<Duration>(
-      stream: playerNotifier.positionStream,
-      builder: (context, snapshotPos) {
-        final position = snapshotPos.data ?? Duration.zero;
+      stream: playerNotifier.durationStream,
+      builder: (context, snapshotDur) {
+        final duration = snapshotDur.data ?? Duration.zero;
         
         return StreamBuilder<Duration>(
-          stream: playerNotifier.durationStream,
-          builder: (context, snapshotDur) {
-            final duration = snapshotDur.data ?? Duration.zero;
+          stream: playerNotifier.positionStream,
+          builder: (context, snapshotPos) {
+            final position = snapshotPos.data ?? Duration.zero;
             
-            // Calculamos valores para el Slider
-            double max = duration.inMilliseconds.toDouble();
-            double current = position.inMilliseconds.toDouble();
+            double maxVal = duration.inMilliseconds.toDouble();
+            double currentVal = position.inMilliseconds.toDouble();
             
-            // Validación para evitar que 'current' sea mayor que 'max' por error de lag
-            if (current > max) current = max;
-            if (max <= 0) max = 1.0; 
+            if (maxVal <= 0) maxVal = 1.0; 
+            if (currentVal > maxVal) currentVal = maxVal;
 
             return Column(
               children: [
                 SliderTheme(
                   data: SliderTheme.of(context).copyWith(
-                    activeTrackColor: AppColors.primary,
+                    activeTrackColor: Colors.white,
                     inactiveTrackColor: Colors.white24,
                     thumbColor: Colors.white,
                     trackHeight: 4,
-                    overlayColor: AppColors.primary.withAlpha(32),
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
                   ),
                   child: Slider(
-                    min: 0.0,
-                    max: max,
-                    value: current,
+                    min: 0,
+                    max: maxVal,
+                    value: currentVal.clamp(0.0, maxVal),
                     onChanged: (value) {
-                      // Movemos la canción al punto donde el usuario suelta el dedo
                       playerNotifier.seek(Duration(milliseconds: value.toInt()));
                     },
                   ),
                 ),
-                // TIEMPOS DEBAJO DEL SLIDER
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: const EdgeInsets.symmetric(horizontal: 25),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(_formatDuration(position), 
-                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                      Text(_formatDuration(duration), 
-                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                      Text(_format(position), style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                      Text(_format(duration), style: const TextStyle(color: Colors.white60, fontSize: 12)),
                     ],
                   ),
                 ),
@@ -201,11 +228,9 @@ class _PlayerSlider extends ConsumerWidget {
     );
   }
 
-  // Función auxiliar para convertir milisegundos a formato 0:00
-  String _formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, "0");
-    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
-    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
-    return "$twoDigitMinutes:$twoDigitSeconds";
+  String _format(Duration d) {
+    final min = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final sec = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return "$min:$sec";
   }
 }
